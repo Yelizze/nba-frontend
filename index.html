@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NBA Stats - PropStats</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        .clean-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23fff'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1.5em 1.5em;
+            padding-right: 2.5rem;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 min-h-screen text-white">
+    <div class="flex flex-col lg:flex-row min-h-screen">
+        <!-- Sidebar gauche (pub future) -->
+        <aside class="hidden lg:block w-40 xl:w-48 bg-slate-900/30 border-r border-slate-800">
+            <!-- Espace pour bannière pub verticale -->
+        </aside>
+
+        <!-- Contenu principal -->
+        <main class="flex-1 max-w-5xl mx-auto w-full p-4 md:p-6">
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-8 pt-4">
+                <button onclick="window.location.href='index.html'" 
+                        class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg transition-all text-sm font-medium">
+                    Retour
+                </button>
+                <h1 class="text-2xl md:text-3xl font-bold text-white">
+                    NBA Stats
+                </h1>
+                <div class="w-20"></div>
+            </div>
+
+            <div id="error" class="hidden bg-red-500/10 border border-red-500/50 rounded-lg p-4 mb-6 text-red-300 text-sm"></div>
+
+            <!-- Favoris -->
+            <div id="favoritesSection" class="hidden bg-gradient-to-r from-orange-500/10 to-orange-600/10 backdrop-blur rounded-xl p-4 mb-6 border border-orange-500/30">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-bold text-orange-400">Favoris</h3>
+                    <button onclick="clearFavorites()" class="text-xs text-gray-400 hover:text-red-400 transition-colors">
+                        Effacer tout
+                    </button>
+                </div>
+                <div id="favoritesList" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <!-- Sélection équipe -->
+            <div class="bg-slate-800/40 backdrop-blur rounded-xl p-5 mb-5 border border-slate-700/50">
+                <label class="block text-xs font-semibold mb-2 text-gray-400 uppercase tracking-wide">Équipe</label>
+                <select id="teamSelect" class="clean-select w-full bg-slate-800 border-0 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all">
+                    <option value="">Chargement...</option>
+                </select>
+                <p id="teamCount" class="text-xs text-gray-500 mt-2"></p>
+            </div>
+
+            <!-- Sélection joueur -->
+            <div id="playerSection" class="hidden bg-slate-800/40 backdrop-blur rounded-xl p-5 mb-5 border border-slate-700/50">
+                <label class="block text-xs font-semibold mb-2 text-gray-400 uppercase tracking-wide">Joueur</label>
+                <select id="playerSelect" class="clean-select w-full bg-slate-800 border-0 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all">
+                    <option value="">Choisir un joueur</option>
+                </select>
+                <p id="playerCount" class="text-xs text-gray-500 mt-2"></p>
+            </div>
+
+            <!-- Configuration stats -->
+            <div id="configSection" class="hidden bg-slate-800/40 backdrop-blur rounded-xl p-5 mb-6 border border-slate-700/50">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold mb-2 text-gray-400 uppercase tracking-wide">Statistique</label>
+                        <select id="statType" class="clean-select w-full bg-slate-800 border-0 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-orange-500 focus:outline-none">
+                            <optgroup label="Scoring">
+                                <option value="points">Points</option>
+                                <option value="threes">3pts réussis</option>
+                                <option value="fgPct">% Tirs</option>
+                                <option value="fg3Pct">% 3pts</option>
+                                <option value="ftPct">% LF</option>
+                            </optgroup>
+                            <optgroup label="Principales">
+                                <option value="totReb">Rebonds</option>
+                                <option value="assists">Passes</option>
+                                <option value="steals">Interceptions</option>
+                                <option value="blocks">Contres</option>
+                            </optgroup>
+                            <optgroup label="Autres">
+                                <option value="minutesPlayed">Minutes</option>
+                                <option value="turnovers">Pertes</option>
+                                <option value="plusMinus">+/-</option>
+                            </optgroup>
+                            <optgroup label="Combinées">
+                                <option value="ptsReb">Pts + Reb</option>
+                                <option value="ptsAst">Pts + Ast</option>
+                                <option value="rebAst">Reb + Ast</option>
+                                <option value="ptsRebAst">Pts + Reb + Ast</option>
+                                <option value="stlBlk">Int + Blk</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold mb-2 text-gray-400 uppercase tracking-wide">Seuil</label>
+                        <input type="number" step="0.5" id="threshold" placeholder="24.5" 
+                               class="w-full bg-slate-800 border-0 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-orange-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold mb-2 text-gray-400 uppercase tracking-wide">Filtre</label>
+                        <select id="locationFilter" class="clean-select w-full bg-slate-800 border-0 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-orange-500 focus:outline-none">
+                            <option value="all">Tous les matchs</option>
+                            <option value="home">À domicile</option>
+                            <option value="away">À l'extérieur</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Graphique -->
+            <div id="chartSection" class="hidden bg-slate-800/40 backdrop-blur rounded-xl p-6 border border-slate-700/50">
+                <div class="mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div class="flex items-center gap-4">
+                        <img id="playerPhoto" src="" alt="" class="w-16 h-16 rounded-full border-2 border-orange-500 object-cover bg-slate-800" 
+                             onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/logoman.png'">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h2 id="playerName" class="text-xl md:text-2xl font-bold"></h2>
+                                <button id="favoriteBtn" onclick="toggleFavorite()" 
+                                        class="text-xl hover:scale-110 transition-transform">
+                                    ☆
+                                </button>
+                                <span id="trendBadge" class="hidden text-xs font-bold px-2 py-1 rounded-full"></span>
+                            </div>
+                            <p id="teamName" class="text-gray-400 text-sm"></p>
+                            <p id="average" class="text-orange-400 font-semibold text-sm mt-1"></p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="exportChart()" 
+                                class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+                            Exporter
+                        </button>
+                        <button onclick="toggleCalculator()" 
+                                class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+                            Calculer
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Calculateur -->
+                <div id="calculator" class="hidden bg-gradient-to-r from-green-900/20 to-blue-900/20 rounded-lg p-4 mb-6 border border-green-700/30">
+                    <h3 class="font-bold mb-3 text-green-400 text-sm">Calculateur de gains</h3>
+                    
+                    <!-- Cotes estimées -->
+                    <div id="estimatedOdds" class="bg-blue-900/20 border border-blue-700/30 rounded-lg p-3 mb-4">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="flex-1">
+                                <div class="text-xs text-blue-400 font-semibold mb-1">Cotes estimées</div>
+                                <div class="flex gap-4 items-center">
+                                    <div>
+                                        <div class="text-xs text-gray-400">Au-dessus</div>
+                                        <div id="overOdds" class="text-xl font-bold text-white">--</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs text-gray-400">En-dessous</div>
+                                        <div id="underOdds" class="text-xl font-bold text-white">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-xs text-gray-400 mb-1">Basé sur</div>
+                                <div id="oddsSource" class="text-xs text-blue-300 font-semibold">Historique</div>
+                            </div>
+                        </div>
+                        <div class="text-xs text-yellow-400 mt-2 flex items-start gap-1">
+                            <span>⚠️</span>
+                            <span>Cotes indicatives calculées automatiquement. Ce ne sont pas les cotes réelles des bookmakers.</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                            <label class="text-xs text-gray-400 mb-1 block">Mise</label>
+                            <input type="number" id="betAmount" value="10" 
+                                   class="w-full bg-slate-800 border-0 rounded px-3 py-2 text-white focus:ring-2 focus:ring-green-500 focus:outline-none" 
+                                   oninput="calculateBet()">
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-400 mb-1 block">Cote (perso)</label>
+                            <input type="number" id="betOdds" value="1.85" step="0.05" 
+                                   class="w-full bg-slate-800 border-0 rounded px-3 py-2 text-white focus:ring-2 focus:ring-green-500 focus:outline-none" 
+                                   oninput="calculateBet()">
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-400 mb-1 block">Gain potentiel</label>
+                            <div id="potentialWin" class="text-2xl font-bold text-green-400">18.50€</div>
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="addToTicket()" class="w-full bg-orange-600 hover:bg-orange-700 text-white py-2 rounded font-semibold transition-colors">
+                                Ajouter au ticket
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mt-3 text-xs text-gray-400">
+                        Probabilité historique: <span id="hitRate" class="font-bold text-orange-400">50%</span>
+                    </div>
+                </div>
+                
+                <canvas id="statsChart" height="100"></canvas>
+
+                <div id="statsDetails" class="mt-6 grid grid-cols-5 gap-2 text-xs"></div>
+
+                <div id="summary" class="mt-6 flex items-center justify-center gap-6 text-sm flex-wrap"></div>
+            </div>
+
+            <div id="loading" class="hidden text-center py-12">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-slate-700 border-t-orange-500"></div>
+                <p class="mt-4 text-gray-400 text-sm">Chargement...</p>
+            </div>
+        </main>
+
+        <!-- Sidebar droite (pub future) -->
+        <aside class="hidden lg:block w-40 xl:w-48 bg-slate-900/30 border-l border-slate-800">
+            <!-- Espace pour bannière pub verticale -->
+        </aside>
+
+        <!-- Widget Ticket de paris (fixe) -->
+        <div id="betTicket" class="fixed bottom-4 right-4 w-80 max-h-96 bg-slate-900 border-2 border-orange-500 rounded-xl shadow-2xl z-50 overflow-hidden hidden">
+            <div class="bg-gradient-to-r from-orange-600 to-orange-700 p-3 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <h3 class="font-bold text-white">Mon Ticket</h3>
+                    <span id="betCount" class="bg-white text-orange-600 text-xs font-bold px-2 py-1 rounded-full">0</span>
+                </div>
+                <button onclick="toggleTicket()" class="text-white hover:text-gray-200">✕</button>
+            </div>
+            
+            <div id="betList" class="max-h-48 overflow-y-auto p-3 space-y-2">
+                <!-- Paris ajoutés ici -->
+            </div>
+            
+            <div class="border-t border-slate-700 p-3 bg-slate-800/50">
+                <div class="space-y-2 text-sm mb-3">
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Cote combinée</span>
+                        <span id="totalOdds" class="font-bold text-orange-400">1.00</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Mise</span>
+                        <input type="number" id="ticketStake" value="10" class="w-20 bg-slate-700 rounded px-2 py-1 text-white text-right" oninput="updateTicketTotal()">
+                    </div>
+                    <div class="flex justify-between text-lg">
+                        <span class="font-bold">Gain potentiel</span>
+                        <span id="totalWin" class="font-bold text-green-400">0.00€</span>
+                    </div>
+                    <div class="text-xs text-gray-400">
+                        Probabilité: <span id="totalProb" class="text-orange-400">0%</span>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="copyTicket()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded font-semibold text-sm transition-colors">
+                        Copier
+                    </button>
+                    <button onclick="clearTicket()" class="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded font-semibold text-sm transition-colors">
+                        Effacer
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bouton flottant pour ouvrir le ticket -->
+        <button id="openTicketBtn" onclick="toggleTicket()" class="fixed bottom-4 right-4 bg-orange-600 hover:bg-orange-700 text-white p-4 rounded-full shadow-lg z-40 hidden transition-transform hover:scale-110">
+            <span class="text-2xl">🎫</span>
+            <span id="floatingBetCount" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center">0</span>
+        </button>
+
+        <!-- Pub mobile en bas -->
+        <div class="lg:hidden bg-slate-900/50 border-t border-slate-800 p-4">
+            <!-- Espace pour bannière pub mobile -->
+        </div>
+    </div>
+
+    <script>
+        const BACKEND_URL = 'http://localhost:3001/api';
+        let chart = null;
+        let teams = [];
+        let players = [];
+        let games = [];
+        let allGames = [];
+        let selectedTeam = null;
+        let selectedPlayer = null;
+        let favorites = JSON.parse(localStorage.getItem('nbaFavorites') || '[]');
+        let betTicketItems = JSON.parse(localStorage.getItem('betTicket') || '[]');
+
+        const elements = {
+            error: document.getElementById('error'),
+            teamSelect: document.getElementById('teamSelect'),
+            playerSection: document.getElementById('playerSection'),
+            playerSelect: document.getElementById('playerSelect'),
+            configSection: document.getElementById('configSection'),
+            chartSection: document.getElementById('chartSection'),
+            loading: document.getElementById('loading'),
+            statType: document.getElementById('statType'),
+            threshold: document.getElementById('threshold'),
+            locationFilter: document.getElementById('locationFilter'),
+            favoriteBtn: document.getElementById('favoriteBtn'),
+            calculator: document.getElementById('calculator')
+        };
+
+        const statLabels = {
+            points: 'Points', totReb: 'Rebonds', assists: 'Passes', steals: 'Interceptions',
+            blocks: 'Contres', threes: '3pts', fgPct: '% Tirs', fg3Pct: '% 3pts', 
+            ftPct: '% LF', minutesPlayed: 'Minutes', turnovers: 'Pertes', plusMinus: '+/-', 
+            ptsReb: 'Pts + Reb', ptsAst: 'Pts + Ast', rebAst: 'Reb + Ast',
+            ptsRebAst: 'Pts + Reb + Ast', stlBlk: 'Int + Blk'
+        };
+
+        function loadFavorites() {
+            const section = document.getElementById('favoritesSection');
+            const list = document.getElementById('favoritesList');
+            
+            if (favorites.length === 0) {
+                section.classList.add('hidden');
+                return;
+            }
+            
+            section.classList.remove('hidden');
+            list.innerHTML = favorites.map(fav => `
+                <button onclick="loadFavoritePlayer(${fav.playerId}, ${fav.teamId})" 
+                        class="bg-slate-700/50 hover:bg-slate-600/50 px-3 py-2 rounded-lg text-xs flex items-center gap-2 transition-colors">
+                    <img src="${fav.photo}" class="w-5 h-5 rounded-full" 
+                         onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/logoman.png'">
+                    ${fav.name}
+                </button>
+            `).join('');
+        }
+
+        function toggleFavorite() {
+            if (!selectedPlayer) return;
+            
+            const fav = {
+                playerId: selectedPlayer.id,
+                teamId: selectedTeam.id,
+                name: `${selectedPlayer.firstname} ${selectedPlayer.lastname}`,
+                photo: selectedPlayer.photo
+            };
+            
+            const index = favorites.findIndex(f => f.playerId === fav.playerId);
+            
+            if (index > -1) {
+                favorites.splice(index, 1);
+                elements.favoriteBtn.textContent = '☆';
+            } else {
+                favorites.push(fav);
+                elements.favoriteBtn.textContent = '⭐';
+            }
+            
+            localStorage.setItem('nbaFavorites', JSON.stringify(favorites));
+            loadFavorites();
+        }
+
+        function clearFavorites() {
+            if (confirm('Supprimer tous les favoris ?')) {
+                favorites = [];
+                localStorage.setItem('nbaFavorites', JSON.stringify(favorites));
+                loadFavorites();
+            }
+        }
+
+        async function loadFavoritePlayer(playerId, teamId) {
+            elements.teamSelect.value = teamId;
+            await loadPlayers(teamId);
+            elements.playerSelect.value = playerId;
+            const player = players.find(p => p.id == playerId);
+            if (player) await loadStats(player);
+        }
+
+        function toggleCalculator() {
+            elements.calculator.classList.toggle('hidden');
+        }
+
+        function calculateBet() {
+            const amount = parseFloat(document.getElementById('betAmount').value) || 0;
+            const odds = parseFloat(document.getElementById('betOdds').value) || 0;
+            const win = (amount * odds).toFixed(2);
+            document.getElementById('potentialWin').textContent = `${win}€`;
+        }
+
+        function calculateEstimatedOdds() {
+            const thresholdValue = parseFloat(elements.threshold.value);
+            
+            if (!thresholdValue || games.length === 0) {
+                document.getElementById('overOdds').textContent = '--';
+                document.getElementById('underOdds').textContent = '--';
+                return;
+            }
+
+            // Calculer la probabilité réelle
+            const stat = elements.statType.value;
+            const values = games.map(g => {
+                let val = 0;
+                switch(stat) {
+                    case 'points': case 'totReb': case 'assists': case 'steals': case 'blocks':
+                    case 'threes': case 'fgPct': case 'fg3Pct': case 'ftPct': case 'minutesPlayed':
+                    case 'turnovers': case 'plusMinus':
+                        val = g[stat] || 0;
+                        break;
+                    case 'ptsReb': val = (g.points || 0) + (g.totReb || 0); break;
+                    case 'ptsAst': val = (g.points || 0) + (g.assists || 0); break;
+                    case 'rebAst': val = (g.totReb || 0) + (g.assists || 0); break;
+                    case 'ptsRebAst': val = (g.points || 0) + (g.totReb || 0) + (g.assists || 0); break;
+                    case 'stlBlk': val = (g.steals || 0) + (g.blocks || 0); break;
+                    default: val = g[stat] || 0;
+                }
+                return typeof val === 'string' ? parseFloat(val) : val;
+            });
+
+            const above = values.filter(v => v >= thresholdValue).length;
+            const overProbability = above / values.length;
+            const underProbability = 1 - overProbability;
+
+            const bookmakerMargin = 0.93;
+
+            let overOdds = (1 / overProbability) * bookmakerMargin;
+            let underOdds = (1 / underProbability) * bookmakerMargin;
+
+            overOdds = Math.max(1.01, Math.min(20.00, overOdds));
+            underOdds = Math.max(1.01, Math.min(20.00, underOdds));
+
+            document.getElementById('overOdds').textContent = overOdds.toFixed(2);
+            document.getElementById('underOdds').textContent = underOdds.toFixed(2);
+            
+            document.getElementById('betOdds').value = overOdds.toFixed(2);
+            calculateBet();
+        }
+
+        function calculateTrend(values, thresholdValue) {
+            if (!thresholdValue || values.length < 5) return null;
+            
+            const recent = values.slice(-5);
+            const aboveCount = recent.filter(v => v >= thresholdValue).length;
+            const percentage = (aboveCount / recent.length) * 100;
+            
+            if (percentage >= 70) return { text: 'Forme', color: 'bg-red-500' };
+            if (percentage <= 30) return { text: 'Baisse', color: 'bg-blue-500' };
+            return null;
+        }
+
+        async function exportChart() {
+            const section = document.getElementById('chartSection');
+            const canvas = await html2canvas(section);
+            const link = document.createElement('a');
+            link.download = `${selectedPlayer.firstname}-${selectedPlayer.lastname}-stats.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+
+        async function checkBackend() {
+            try {
+                await fetch(`${BACKEND_URL}/health`);
+                loadTeams();
+            } catch (err) {
+                showError('Backend non accessible. Lance python server.py');
+            }
+        }
+
+        async function loadTeams() {
+            showLoading(true);
+            try {
+                const response = await fetch(`${BACKEND_URL}/teams`);
+                const data = await response.json();
+                
+                if (data.response?.length > 0) {
+                    teams = data.response.sort((a, b) => a.name.localeCompare(b.name));
+                    elements.teamSelect.innerHTML = '<option value="">Choisir une équipe</option>';
+                    teams.forEach(team => {
+                        const option = document.createElement('option');
+                        option.value = team.id;
+                        option.textContent = team.name;
+                        elements.teamSelect.appendChild(option);
+                    });
+                    document.getElementById('teamCount').textContent = `${teams.length} équipes disponibles`;
+                    hideError();
+                }
+            } catch (err) {
+                showError('Erreur lors du chargement des équipes');
+            }
+            showLoading(false);
+        }
+
+        async function loadPlayers(teamId) {
+            showLoading(true);
+            elements.playerSection.classList.remove('hidden');
+            selectedTeam = teams.find(t => t.id == teamId);
+            
+            try {
+                const response = await fetch(`${BACKEND_URL}/players/${teamId}`);
+                const data = await response.json();
+                
+                if (data.response?.length > 0) {
+                    players = data.response
+                        .filter(p => p.firstname && p.lastname)
+                        .sort((a, b) => a.lastname.localeCompare(b.lastname));
+                    
+                    elements.playerSelect.innerHTML = '<option value="">Choisir un joueur</option>';
+                    players.forEach(player => {
+                        const option = document.createElement('option');
+                        option.value = player.id;
+                        option.textContent = `${player.firstname} ${player.lastname}`;
+                        elements.playerSelect.appendChild(option);
+                    });
+                    document.getElementById('playerCount').textContent = `${players.length} joueurs disponibles`;
+                    hideError();
+                }
+            } catch (err) {
+                showError('Erreur lors du chargement des joueurs');
+            }
+            showLoading(false);
+        }
+
+        async function loadStats(player) {
+            showLoading(true);
+            selectedPlayer = player;
+            
+            const isFav = favorites.some(f => f.playerId === player.id);
+            elements.favoriteBtn.textContent = isFav ? '⭐' : '☆';
+            
+            try {
+                const response = await fetch(`${BACKEND_URL}/stats/${player.id}`);
+                const data = await response.json();
+                
+                if (data.response?.length > 0) {
+                    // Les données arrivent du plus récent au plus ancien
+                    // On garde les 30 derniers matchs sans reverse pour garder l'ordre chronologique inversé
+                    allGames = data.response.slice(0, 30);
+                    games = allGames.slice(0, 10); // Les 10 plus récents
+                    elements.configSection.classList.remove('hidden');
+                    elements.locationFilter.value = 'all'; // Reset le filtre
+                    updateChart();
+                    hideError();
+                }
+            } catch (err) {
+                showError('Erreur lors du chargement des statistiques');
+            }
+            showLoading(false);
+        }
+
+        function filterGames() {
+            const filter = elements.locationFilter.value;
+            
+            if (filter === 'all') {
+                // Afficher les 10 matchs les plus récents
+                games = allGames.slice(0, 10);
+            } else {
+                // Récupérer l'abréviation de l'équipe du joueur
+                const teamAbbr = selectedTeam?.abbreviation;
+                
+                // Filtrer par home/away en vérifiant la position de l'équipe dans le matchup
+                // Format NBA: "SAS vs LAL" = SAS à domicile, "SAS @ LAL" = SAS à l'extérieur
+                const filtered = allGames.filter(g => {
+                    const matchup = g.game?.matchup || '';
+                    
+                    // Trouver si l'équipe est en première position (avant le séparateur)
+                    const parts = matchup.split(/\s+(?:vs\.?|@)\s+/i);
+                    const firstTeam = parts[0]?.trim();
+                    
+                    const hasVs = matchup.toLowerCase().includes('vs');
+                    const hasAt = matchup.includes('@');
+                    
+                    // Si l'équipe du joueur est en premier:
+                    // - "vs" = domicile
+                    // - "@" = extérieur
+                    // Si l'équipe du joueur est en second:
+                    // - "vs" = extérieur (l'autre équipe est à domicile)
+                    // - "@" = domicile (l'autre équipe joue chez nous)
+                    
+                    let isHome, isAway;
+                    
+                    if (firstTeam === teamAbbr) {
+                        // Notre équipe est mentionnée en premier
+                        isHome = hasVs;
+                        isAway = hasAt;
+                    } else {
+                        // Notre équipe est mentionnée en second
+                        isHome = hasAt;
+                        isAway = hasVs;
+                    }
+                    
+                    return filter === 'away' ? isAway : isHome;
+                });
+                
+                games = filtered.slice(0, 10);
+                
+                console.log(`Team: ${teamAbbr}, Filter: ${filter}, Found: ${filtered.length} games, Showing: ${games.length}`);
+            }
+            
+            if (games.length === 0) {
+                showError(`Aucun match ${filter === 'home' ? 'à domicile' : 'à l\'extérieur'} dans les 30 derniers`);
+                games = allGames.slice(0, 10);
+                elements.locationFilter.value = 'all';
+            } else {
+                hideError();
+            }
+            
+            updateChart();
+        }
+
+        function updateChart() {
+            const stat = elements.statType.value;
+            const thresholdValue = parseFloat(elements.threshold.value) || null;
+            
+            // Labels: dates des matchs (du plus ancien au plus récent pour l'affichage)
+            const displayGames = [...games].reverse();
+            
+            const labels = displayGames.map((g, i) => {
+                const date = g.game?.date ? new Date(g.game.date.start).toLocaleDateString('fr-FR', { month: '2-digit', day: '2-digit' }) : `M${i + 1}`;
+                return date;
+            });
+            
+            const values = displayGames.map(g => {
+                let val = 0;
+                switch(stat) {
+                    case 'points': case 'totReb': case 'assists': case 'steals': case 'blocks':
+                    case 'threes': case 'fgPct': case 'fg3Pct': case 'ftPct': case 'minutesPlayed':
+                    case 'turnovers': case 'plusMinus':
+                        val = g[stat] || 0;
+                        break;
+                    case 'ptsReb': val = (g.points || 0) + (g.totReb || 0); break;
+                    case 'ptsAst': val = (g.points || 0) + (g.assists || 0); break;
+                    case 'rebAst': val = (g.totReb || 0) + (g.assists || 0); break;
+                    case 'ptsRebAst': val = (g.points || 0) + (g.totReb || 0) + (g.assists || 0); break;
+                    case 'stlBlk': val = (g.steals || 0) + (g.blocks || 0); break;
+                    default: val = g[stat] || 0;
+                }
+                return typeof val === 'string' ? parseFloat(val) : val;
+            });
+            
+            const colors = values.map(v => !thresholdValue ? '#3b82f6' : v >= thresholdValue ? '#10b981' : '#ef4444');
+            const average = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(1);
+            
+            const trend = calculateTrend(values, thresholdValue);
+            const trendBadge = document.getElementById('trendBadge');
+            if (trend) {
+                trendBadge.textContent = trend.text;
+                trendBadge.className = `text-xs font-bold px-2 py-1 rounded-full ${trend.color} text-white`;
+                trendBadge.classList.remove('hidden');
+            } else {
+                trendBadge.classList.add('hidden');
+            }
+            
+            document.getElementById('playerName').textContent = `${selectedPlayer.firstname} ${selectedPlayer.lastname}`;
+            document.getElementById('playerPhoto').src = selectedPlayer.photo;
+            document.getElementById('teamName').textContent = selectedTeam.name;
+            document.getElementById('average').textContent = `Moyenne: ${average} ${statLabels[stat].toLowerCase()}`;
+            
+            const detailsHtml = values.map((val, i) => `
+                <div class="text-center">
+                    <div class="font-semibold">${val}</div>
+                    <div class="text-gray-400 truncate text-xs">${labels[i]}</div>
+                </div>
+            `).join('');
+            document.getElementById('statsDetails').innerHTML = detailsHtml;
+            
+            if (thresholdValue) {
+                const above = values.filter(v => v >= thresholdValue).length;
+                const below = values.length - above;
+                const percentage = ((above / values.length) * 100).toFixed(0);
+                document.getElementById('hitRate').textContent = `${percentage}%`;
+                document.getElementById('summary').innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 bg-green-500 rounded"></div>
+                        <span class="text-sm">Au-dessus (${above})</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 bg-red-500 rounded"></div>
+                        <span class="text-sm">En-dessous (${below})</span>
+                    </div>
+                    <div class="text-orange-400 font-bold text-sm">${percentage}% de réussite</div>
+                `;
+                
+                calculateEstimatedOdds();
+            } else {
+                document.getElementById('summary').innerHTML = '';
+                document.getElementById('overOdds').textContent = '--';
+                document.getElementById('underOdds').textContent = '--';
+            }
+            
+            elements.chartSection.classList.remove('hidden');
+            
+            const ctx = document.getElementById('statsChart').getContext('2d');
+            if (chart) chart.destroy();
+            
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{ data: values, backgroundColor: colors, borderRadius: 8 }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: false },
+                        annotation: thresholdValue ? {
+                            annotations: {
+                                line1: {
+                                    type: 'line',
+                                    yMin: thresholdValue,
+                                    yMax: thresholdValue,
+                                    borderColor: '#fb923c',
+                                    borderWidth: 2,
+                                    borderDash: [6, 4],
+                                    label: {
+                                        display: true,
+                                        content: `Seuil: ${thresholdValue}`,
+                                        position: 'end',
+                                        backgroundColor: '#fb923c',
+                                        color: '#0f172a',
+                                        font: { weight: 'bold', size: 10 },
+                                        padding: 3
+                                    }
+                                }
+                            }
+                        } : {}
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#94a3b8', font: { size: 11 } },
+                            grid: { color: '#1e293b' }
+                        },
+                        x: {
+                            ticks: { color: '#94a3b8', font: { size: 10 } },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function showError(msg) {
+            elements.error.textContent = msg;
+            elements.error.classList.remove('hidden');
+        }
+
+        function hideError() {
+            elements.error.classList.add('hidden');
+        }
+
+        function showLoading(show) {
+            elements.loading.classList.toggle('hidden', !show);
+        }
+
+        elements.teamSelect.addEventListener('change', (e) => {
+            if (e.target.value) {
+                elements.configSection.classList.add('hidden');
+                elements.chartSection.classList.add('hidden');
+                loadPlayers(e.target.value);
+            }
+        });
+
+        elements.playerSelect.addEventListener('change', (e) => {
+            if (e.target.value) {
+                const player = players.find(p => p.id == e.target.value);
+                if (player) loadStats(player);
+            }
+        });
+
+        elements.statType.addEventListener('change', () => games.length > 0 && updateChart());
+        elements.threshold.addEventListener('input', () => {
+            if (games.length > 0) {
+                updateChart();
+                calculateEstimatedOdds();
+            }
+        });
+        elements.locationFilter.addEventListener('change', filterGames);
+
+        // Ticket de paris
+        function addToTicket() {
+            if (!selectedPlayer || !elements.threshold.value) {
+                alert('Sélectionne un joueur et définis un seuil');
+                return;
+            }
+
+            const stat = elements.statType.value;
+            const thresholdValue = parseFloat(elements.threshold.value);
+            const odds = parseFloat(document.getElementById('betOdds').value);
+            const hitRate = document.getElementById('hitRate').textContent;
+
+            const bet = {
+                id: Date.now(),
+                player: `${selectedPlayer.firstname} ${selectedPlayer.lastname}`,
+                photo: selectedPlayer.photo,
+                team: selectedTeam.name,
+                stat: statLabels[stat],
+                threshold: thresholdValue,
+                odds: odds,
+                probability: hitRate
+            };
+
+            betTicketItems.push(bet);
+            localStorage.setItem('betTicket', JSON.stringify(betTicketItems));
+            updateTicketDisplay();
+            
+            showNotification(`${bet.player} ajouté au ticket`);
+        }
+
+        function updateTicketDisplay() {
+            const betList = document.getElementById('betList');
+            const betCount = document.getElementById('betCount');
+            const floatingCount = document.getElementById('floatingBetCount');
+            const ticketWidget = document.getElementById('betTicket');
+            const openBtn = document.getElementById('openTicketBtn');
+
+            if (betTicketItems.length === 0) {
+                betList.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">Aucun pari ajouté</p>';
+                ticketWidget.classList.add('hidden');
+                openBtn.classList.add('hidden');
+                return;
+            }
+
+            openBtn.classList.remove('hidden');
+            betCount.textContent = betTicketItems.length;
+            floatingCount.textContent = betTicketItems.length;
+
+            betList.innerHTML = betTicketItems.map(bet => `
+                <div class="bg-slate-800 rounded-lg p-2 flex items-center gap-2 text-xs">
+                    <img src="${bet.photo}" class="w-8 h-8 rounded-full" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/logoman.png'">
+                    <div class="flex-1 min-w-0">
+                        <div class="font-semibold truncate">${bet.player}</div>
+                        <div class="text-gray-400 truncate">${bet.stat} ${bet.threshold}+</div>
+                        <div class="text-orange-400">Cote: ${bet.odds}</div>
+                    </div>
+                    <button onclick="removeBet(${bet.id})" class="text-red-400 hover:text-red-300 text-lg">×</button>
+                </div>
+            `).join('');
+
+            updateTicketTotal();
+        }
+
+        function updateTicketTotal() {
+            if (betTicketItems.length === 0) {
+                document.getElementById('totalOdds').textContent = '1.00';
+                document.getElementById('totalWin').textContent = '0.00€';
+                document.getElementById('totalProb').textContent = '0%';
+                return;
+            }
+
+            const totalOdds = betTicketItems.reduce((acc, bet) => acc * bet.odds, 1);
+            const stake = parseFloat(document.getElementById('ticketStake').value) || 0;
+            const totalWin = stake * totalOdds;
+
+            const totalProb = betTicketItems.reduce((acc, bet) => {
+                const prob = parseFloat(bet.probability.replace('%', '')) / 100;
+                return acc * prob;
+            }, 1) * 100;
+
+            document.getElementById('totalOdds').textContent = totalOdds.toFixed(2);
+            document.getElementById('totalWin').textContent = `${totalWin.toFixed(2)}€`;
+            document.getElementById('totalProb').textContent = `${totalProb.toFixed(0)}%`;
+        }
+
+        function removeBet(id) {
+            betTicketItems = betTicketItems.filter(bet => bet.id !== id);
+            localStorage.setItem('betTicket', JSON.stringify(betTicketItems));
+            updateTicketDisplay();
+        }
+
+        function toggleTicket() {
+            const ticket = document.getElementById('betTicket');
+            ticket.classList.toggle('hidden');
+        }
+
+        function clearTicket() {
+            if (confirm('Effacer tout le ticket ?')) {
+                betTicketItems = [];
+                localStorage.setItem('betTicket', JSON.stringify(betTicketItems));
+                updateTicketDisplay();
+            }
+        }
+
+        function copyTicket() {
+            if (betTicketItems.length === 0) {
+                alert('Aucun pari dans le ticket');
+                return;
+            }
+
+            const stake = document.getElementById('ticketStake').value;
+            const totalOdds = document.getElementById('totalOdds').textContent;
+            const totalWin = document.getElementById('totalWin').textContent;
+            
+            let text = `🎫 MON TICKET DE PARIS\n\n`;
+            
+            betTicketItems.forEach((bet, i) => {
+                text += `${i + 1}. ${bet.player} (${bet.team})\n`;
+                text += `   ${bet.stat} ${bet.threshold}+ | Cote: ${bet.odds}\n\n`;
+            });
+            
+            text += `💰 RÉSUMÉ\n`;
+            text += `Cote combinée: ${totalOdds}\n`;
+            text += `Mise: ${stake}€\n`;
+            text += `Gain potentiel: ${totalWin}\n`;
+
+            navigator.clipboard.writeText(text).then(() => {
+                showNotification('Ticket copié dans le presse-papier');
+            });
+        }
+
+        function showNotification(message) {
+            const notif = document.createElement('div');
+            notif.className = 'fixed top-4 right-4 bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg z-50 animate-fade-in';
+            notif.textContent = message;
+            document.body.appendChild(notif);
+            
+            setTimeout(() => {
+                notif.remove();
+            }, 3000);
+        }
+
+        checkBackend();
+        loadFavorites();
+        calculateBet();
+        updateTicketDisplay();
+    </script>
+</body>
+</html>
